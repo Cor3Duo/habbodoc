@@ -1,6 +1,3 @@
-Para tornar o markdown mais didático e explicativo, podemos reestruturar e enriquecer o conteúdo com uma introdução mais detalhada, subdivisões claras, exemplos práticos, e uma conclusão que amarre o conhecimento apresentado. Veja abaixo como ficaria:
-
----
 
 # Comunicação com Servidores de Habbo Usando TCP e Manipulação de Bytes
 
