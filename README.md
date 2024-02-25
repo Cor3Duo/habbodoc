@@ -22,6 +22,57 @@ Largura  Header  Dados
 0000000a  0a2e   0000000000000000
 ```
 Os primeiros 4 bytes é a quantidade de bytes que tem no pacote ignorando os primeiros 4 bytes, por exemplo se os primeiros 4 bytes forem `0000000a` isso significa que há 10 bytes a seguir para serem lidos. Os proximos 2 bytes é o header, o header é um identificador (id) do pacote, ou seja, cada pacote tem uma forma específica de ler os dados, que são os bytes após os 6 primeiros bytes. Os pacotes são escritos na ordem do byte mais significativo (Big Endian).
+#### Como eu irei descobrir a estrutura dos dados de cada pacote?
+A resposta é no repositório do [nitro-renderer](https://github.com/billsonnn/nitro-renderer). Nesse repositório você terá um arquivo contendo os nomes e headers dos pacotes [OUTGOING](https://github.com/billsonnn/nitro-renderer/blob/81cfd5c56fcc42e2edb1e5c6fdc1248690da9d5f/src/nitro/communication/messages/outgoing/OutgoingHeader.ts#L150) e [INCOMING](https://github.com/billsonnn/nitro-renderer/blob/81cfd5c56fcc42e2edb1e5c6fdc1248690da9d5f/src/nitro/communication/messages/incoming/IncomingHeader.ts), e ao obter o nome referente ao header do pacote, você irá procurar a classe que manipula esse pacote no arquivo [NitroMessages](https://github.com/billsonnn/nitro-renderer/blob/81cfd5c56fcc42e2edb1e5c6fdc1248690da9d5f/src/nitro/communication/NitroMessages.ts), após encontrar a classe por exemplo:
+```ts
+this._events.set(IncomingHeader.CATALOG_PAGE, CatalogPageMessageEvent);
+```
+Significa que a classe referente ao pacote `CATALOG_PAGE` é o `CatalogPageMessageEvent`, para pacotes `INCOMING` você precisará a classe Parser, por exemplo `CatalogPageMessageParser`, que é onde está a forma como é lido o pacote, como no exemplo abaixo:
+```ts
+public parse(wrapper: IMessageDataWrapper): boolean
+{
+    if(!wrapper) return false;
+
+    this._pageId = wrapper.readInt();
+    this._catalogType = wrapper.readString();
+    this._layoutCode = wrapper.readString();
+    this._localization = new CatalogLocalizationData(wrapper);
+
+    let totalOffers = wrapper.readInt();
+
+    while(totalOffers > 0)
+    {
+        this._offers.push(new CatalogPageMessageOfferData(wrapper));
+
+        totalOffers--;
+    }
+
+    this._offerId = wrapper.readInt();
+    this._acceptSeasonCurrencyAsCredits = wrapper.readBoolean();
+
+    if(wrapper.bytesAvailable)
+    {
+        let totalFrontPageItems = wrapper.readInt();
+
+        while(totalFrontPageItems > 0)
+        {
+            this._frontPageItems.push(new FrontPageItem(wrapper));
+
+            totalFrontPageItems--;
+        }
+    }
+
+    return true;
+}
+```
+No método `parse` da classe possuem vários `wrapper.readInt`, `wrapper.readShort`... Logo você consegue montar a estrutura baseada na ordem da leitura dos bytes, por exemplo no código acima ele lê um `Int` em que esse valor representa o id da página do catálogo, e lendo o resto você conseguirá identificar os valores. Já para pacotes `OUTGOING` é um pouco mais simples, já que ao descobrir a classe que manipula o pacote, você já consegue obter a estrutura do pacote de cara, por exemplo no construtor da classe `ClientHelloMessageComposer`
+```ts
+constructor(releaseVersion: string, type: string, platform: number, category: number)
+{
+    this._data = [`NITRO-${NitroVersion.RENDERER_VERSION.replaceAll('.', '-')}`, 'HTML5', ClientPlatformEnum.HTML5, ClientDeviceCategoryEnum.BROWSER];
+}
+```
+Podemos observar que primeiro ele escreve uma string releaseVersion, e abaixo na propriedade `_data` é um array contendo os valores que serão escritos no pacote, ou seja você pode pegar esses valores para criar uma comunicação fiel ou usar seus próprios valores, porém alguns hotéis verificam esses valores para prosseguir com o handshake, então aconselho que envie o valor que está sendo enviado no jogo.
 
 ---
 
@@ -46,3 +97,4 @@ connection.on("data", data => {
      const header = data.readInt16BE(4);
 });
 ```
+3. Por ultimo você precisará enviar 3 pacotes necessários para a autenticação, o ReleaseVersion, MachineID e SecureTicket.
