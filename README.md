@@ -55,9 +55,61 @@ const connection = net.createConnection(30000, "habboretro.com", () => {
 ```typescript
 connection.on("data", data => {
     // Vamos ler os 4 primeiros bytes (32 bits) na ordem Big Endian, 0 é o offset
-     const length = data.readInt32BE(0);
-     // Aqui lemos os 2 bytes do header do pacote pulando os 4 primeiros bytes
-     const header = data.readInt16BE(4);
+    const length = data.readInt32BE(0);
+    // Aqui lemos os 2 bytes do header do pacote pulando os 4 primeiros bytes
+    const header = data.readInt16BE(4);
 });
 ```
 3. Por ultimo você precisará enviar 3 pacotes necessários para a autenticação, o ReleaseVersion, MachineID e SecureTicket.
+
+```typescript
+// Essa função é para a criptografia do sso caso você esteja fazendo o bot para o Hotel Habblet, você irá precisar disso.
+function crypt(e: string) {
+  const t = (e: string) =>
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".indexOf(e);
+  return e
+    .split("")
+    .map((e) =>
+      t(e) > -1
+        ? "NOPQRSTUVWXYZABCDEFGHIJKLMnopqrstuvwxyzabcdefghijklm"[t(e)]
+        : e
+    )
+    .join("");
+}
+
+connection.on("connect", data => {
+    // Vamos anotar os dados que irão ser escritos no buffer
+    const production = Buffer.from("PRODUCTION-202101271337-HTML5");
+    const type = Buffer.from("HTML5");
+    const platform = 2;
+    const category = 1;
+    // Vamos criar um buffer contendo a quantia total de bytes
+    let packet = Buffer.alloc(18);
+    // Agora vamos montar o pacote
+    packet.writeInt32BE(production.length + type.length + 14);
+    packet.writeInt16BE(4000);
+    packet.writeInt16BE(production.length);
+    packet = Buffer.concat([packet, production]);
+    packet.writeInt16BE(type.length);
+    packet = Buffer.concat([packet, type]);
+    packet.writeInt32BE(platform);
+    packet.writeInt32BE(category);
+    // Agora enviamos o packet de ReleaseVersion
+    connection.write(packet);
+
+    // Após o envio do primeiro pacote, vamos enviar agora o pacote SecureTicket
+    // Esse "sso" é o ticket que você irá na página do hotel na aba do nitro ou flash
+    const sso = Buffer.from("cole seu sso aqui");
+    const ssoEncrypted = Buffer.from(crypt("cole seu sso aqui também"));
+    // Esse é o tempo que demorou pro jogo iniciar, pode colocar o valor que quiser em milisegundos
+    const time = 10_000;
+    packet = Buffer.alloc(14);
+    packet.writeInt32BE(sso.length + ssoEncrypted.length + 10);
+    packet.writeInt16BE(2419);
+    packet.writeInt16BE(sso.length);
+    packet = Buffer.concat([packet, sso]);
+    packet.writeInt32BE(time);
+    packet.writeInt16BE(ssoEncrypted.length);
+    packet = Buffer.concat([packet, ssoEncrypted]);
+});
+```
