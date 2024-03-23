@@ -77,40 +77,52 @@ function crypt(e: string) {
     .join("");
 }
 
+function copyBytes(from: Buffer, to: Buffer, offset: number) {
+    for(let i = 0; i < from.length; i++) {
+        to[i + offset] = from[i];
+    }
+}
+
 connection.on("connect", data => {
     // Vamos anotar os dados que irão ser escritos no buffer
+    let offset = 0;
     const production = Buffer.from("PRODUCTION-202101271337-HTML5");
     const type = Buffer.from("HTML5");
     const platform = 2;
     const category = 1;
     // Vamos criar um buffer contendo a quantia total de bytes
-    let packet = Buffer.alloc(18);
+    let packet = Buffer.alloc(production.length + type.length + 18);
     // Agora vamos montar o pacote
-    packet.writeInt32BE(production.length + type.length + 14);
-    packet.writeInt16BE(4000);
-    packet.writeInt16BE(production.length);
-    packet = Buffer.concat([packet, production]);
-    packet.writeInt16BE(type.length);
-    packet = Buffer.concat([packet, type]);
-    packet.writeInt32BE(platform);
-    packet.writeInt32BE(category);
+    packet.writeInt32BE(production.length + type.length + 14, offset);
+    packet.writeInt16BE(4000, offset + 4);
+    packet.writeInt16BE(production.length, offset + 6);
+    copyBytes(production, packet, offset + 8);
+    offset += 8 + production.length;
+    packet.writeInt16BE(type.length, offset);
+    copyBytes(type, packet, offset + 2);
+    offset += 2 + type.length;
+    packet.writeInt32BE(platform, offset);
+    packet.writeInt32BE(category, offset + 4);
     // Agora enviamos o packet de ReleaseVersion
     connection.write(packet);
 
+    offset = 0;
     // Após o envio do primeiro pacote, vamos enviar agora o pacote SecureTicket
     // Esse "sso" é o ticket que você irá na página do hotel na aba do nitro ou flash
     const sso = Buffer.from("cole seu sso aqui");
     const ssoEncrypted = Buffer.from(crypt("cole seu sso aqui também"));
     // Esse é o tempo que demorou pro jogo iniciar, pode colocar o valor que quiser em milisegundos
     const time = 10_000;
-    packet = Buffer.alloc(14);
-    packet.writeInt32BE(sso.length + ssoEncrypted.length + 10);
-    packet.writeInt16BE(2419);
-    packet.writeInt16BE(sso.length);
-    packet = Buffer.concat([packet, sso]);
-    packet.writeInt32BE(time);
-    packet.writeInt16BE(ssoEncrypted.length);
-    packet = Buffer.concat([packet, ssoEncrypted]);
+    packet = Buffer.alloc(sso.length + ssoEncrypted.length + 14);
+    packet.writeInt32BE(sso.length + ssoEncrypted.length + 10, offset);
+    packet.writeInt16BE(2419, offset + 4);
+    packet.writeInt16BE(sso.length, offset + 6);
+    copyBytes(sso, packet, offset + 8);
+    offset += 8 + sso.length;
+    packet.writeInt32BE(time, offset);
+    packet.writeInt16BE(ssoEncrypted.length, offset + 4);
+    copyBytes(ssoEncrypted, packet, offset + 6);
+    offset += 6 + ssoEncrypted.length;
     connection.write(packet);
 });
 ```
