@@ -111,5 +111,6 @@ connection.on("connect", data => {
     packet.writeInt32BE(time);
     packet.writeInt16BE(ssoEncrypted.length);
     packet = Buffer.concat([packet, ssoEncrypted]);
+    connection.write(packet);
 });
 ```
